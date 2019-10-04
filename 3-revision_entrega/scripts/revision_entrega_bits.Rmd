@@ -1,0 +1,454 @@
+---
+title: "Revisión BITS"
+date: "3/8/2019"
+output: html_document
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+knitr::opts_chunk$set(echo = FALSE, cache=TRUE)
+source(file = "../../scripts/funciones.R")
+```
+
+En este documento revisamos la entrega de BITS para el mapa de referencia 2018.
+
+```{r cargar paquetes, message=FALSE, warning=FALSE}
+library(sf)
+library(raster)
+library(dplyr)
+library(tidyverse)
+library(srvyr)
+```
+
+```{r cargar_datos, message=FALSE}
+bits_2018_lcc <- read_rds("../../datos_salida/bits_2018_lcc.rdata")
+```
+
+BITS etiquetó `r nrow(bits_2018_lcc)` pixeles, la instrucción de los 
+intérpretes fue elegir la clase preponderante para cada pixel y en caso de duda
+ recurrir a una segunda o tercera opción de clase:
+ 
+* En el **`r imprime_porcent(bits_2018_lcc$interp2_c17 != 0)`%** de los casos se 
+utilizó la segunda etiqueta y únicamente en el 
+**`r imprime_porcent(bits_2018_lcc$interp3_c17 != 0)`%** de los pixeles se 
+recurrió a la tercera opción.
+
+```{r confuision_crudos_top, eval = FALSE}
+table(bits_2018_lcc$raster_c17, bits_2018_lcc$interp1_c17) %>% 
+    escribe_tab()
+```
+
+
+
+### Revisión de proceso BITS
+
+Con el fin de revisar el desempeño de BITS Pedro evaluó una muestra de 300 
+pixeles seleccionada a partir de la muestra de BITS.
+
+Se eligieron alrededor de 10 pixeles de cada clase:
+
+* Muestra estratificada por clase (de un subconjunto de 30 clases).
+
+* Pedro propuso dos etiquetas: etiqueta pixel y etiqueta hectárea, resultan de
+evaluar únicamente el pixel seleccionado y de evaluar una hectárea alrededor del
+mismo.
+
+#### Pedro-BITS
+
+Comparamos etiquetado Pedro con etiquetado BITS para 31 y 17 clases.
+
+La siguiente tabla corresponde a 31 clases, la columna total es la coincidencia 
+de alguna de las etiquetas de Pedro con alguna de las etiquetas de BITS, la
+segunda corresponde a coincidencia entre etiqueta de hectárea con alguna de las
+de BITS y la última la coincidencia entre pixel y BITS.
+
+```{r}
+bits_pedro <- read_rds("../../datos_salida/bits_pedro.rds")
+bits_pedro %>% 
+    as.data.frame() %>% 
+    summarise(
+        clases_31 = imprime_porcent(p_bits_correcto_31), 
+        clases_31_1ha = imprime_porcent(p_bits_correcto_31_1ha), 
+        clases_31_pix = imprime_porcent(p_bits_correcto_31_pix)
+        
+    ) %>% 
+    knitr::kable(col.names = c("31 total", "ha", "pixel"))
+```
+
+Y la tabla análoga con la clasificación de 17 clases sería:
+
+```{r}
+bits_pedro %>% 
+    as.data.frame() %>% 
+    summarise(
+        clases_17 = imprime_porcent(p_bits_correcto_17),
+        clases_17_1ha = imprime_porcent(p_bits_correcto_17_1ha),
+        clases_17_pix = imprime_porcent(p_bits_correcto_17_pix)
+    ) %>% 
+    knitr::kable(col.names = c("17 total", "ha", "pixel"))
+```
+
+Podemos también hacer estimaciones de la exactitud BITS (calidad de trabajo de 
+intérpretes) considerando el dieño de la muestra de Pedro, en este caso debemos
+considerar que la población es el el conjunto de datos etiquetados por BITS.
+
+En el caso de 31 clases obtenemos las siguientes estimaciones:
+
+```{r}
+bits_pedro_design <- read_rds("../../datos_salida/bits_pedro_design.rds")
+bits_pedro_design %>% 
+    summarise(
+        total = survey_mean(p_bits_correcto_31), 
+        ha = survey_mean(p_bits_correcto_31_1ha),
+        pix = survey_mean(p_bits_correcto_31_pix)) %>% 
+    dplyr::mutate_all(list(~round(100 * ., 1))) %>% 
+    gather() %>% 
+    mutate(
+        tipo = ifelse(str_detect(key, pattern = "se"), "e.est.", "prop"), 
+        key = str_remove(string = key, pattern = "_se")
+        ) %>% 
+    spread(tipo, value) %>% 
+    dplyr::select(tipo = key, prop, everything()) %>% 
+    arrange(-prop) %>% 
+    knitr::kable()
+```
+
+Y para 17 clases:
+
+```{r}
+bits_pedro_design %>% 
+    summarise(
+        total = survey_mean(p_bits_correcto_17), 
+        ha = survey_mean(p_bits_correcto_17_1ha),
+        pix = survey_mean(p_bits_correcto_17_pix)) %>% 
+    dplyr::mutate_all(list(~round(100 * ., 1))) %>% 
+    gather() %>% 
+    mutate(
+        tipo = ifelse(str_detect(key, pattern = "se"), "error est.", "prop"), 
+        key = str_remove(string = key, pattern = "_se")
+        ) %>% 
+    spread(tipo, value) %>% 
+    dplyr::select(tipo = key, prop, everything()) %>% 
+    arrange(-prop) %>% 
+    knitr::kable()
+```
+
+Notamos que las estimaciones son muy similares a las tablas de proporciones 
+crudas (sin considerar el proceso de selección de la muestra).
+
+
+#### Pedro - MAD-Mex
+
+El porcentaje de correctos, usando las etiquetas de Pedro sería, para 31 clases
+(omitiendo diseño muestral):
+
+```{r}
+bits_pedro %>% 
+    as.data.frame() %>% 
+    summarise(
+        clases_31 = imprime_porcent(p_correcto_31),
+        clases_31_1ha = imprime_porcent(p_correcto_31_ha),
+        clases_31_pix = imprime_porcent(p_correcto_31_pix)
+    ) %>% 
+    knitr::kable()
+```
+
+Y para 17:
+
+```{r}
+bits_pedro %>% 
+    as.data.frame() %>% 
+    summarise(
+        clases_17 = imprime_porcent(p_correcto_17),
+        clases_17_1ha = imprime_porcent(p_correcto_17_ha),
+        clases_17_pix = imprime_porcent(p_correcto_17_pix)
+    ) %>% 
+    knitr::kable()
+```
+
+
+
+
+### BITS estimaciones
+
+Calculamos ahora las exactitudes utilizando el diseño de muestreo.
+
+
+La siguiente tabla muestra las estimaciones para la proporción de área 
+correctamente clasificada y el error estándar de la estimación.
+
+```{r, message=FALSE}
+est_clases_17_top <- estima_total(bits_design, correcto_17_top)
+est_clases_17_top3 <- estima_total(bits_design, correcto_17_top3)
+est_clases_31_top <- estima_total(bits_design, correcto_31_top)
+est_clases_31_top3 <- estima_total(bits_design, correcto_31_top3)
+
+est_clases_17_prop_top <- est_clases_17_top$correcto_17_top
+est_clases_17_prop_top3 <- est_clases_17_top3$correcto_17_top3
+est_clases_31_prop_top <- est_clases_31_top$correcto_31_top
+est_clases_31_prop_top3 <- est_clases_31_top3$correcto_31_top3
+
+bind_cols(est_clases_17_top, est_clases_17_top3, est_clases_31_top, 
+    est_clases_31_top3) %>% 
+    gather() %>% 
+    mutate(
+        key = str_remove(key, "correcto_"), 
+        tipo = ifelse(str_detect(key, "se"), "e.est.", "prop"),
+        key = str_remove(key, "_se")
+        ) %>% 
+    spread(tipo, value) %>% 
+    select(key, prop, e.est.) %>% 
+    knitr::kable()
+```
+
+Calculamos exactitudes de usuario y productor, nuevamente podemos
+calcular con *top* y *top3*.
+
+
+```{r}
+estimaciones_17_top <- estima_clase(bits_design, var_clase_madmex = raster_c17, 
+    var_clase_correct = interp1_c17, var_y = correcto_17_top)
+escribe_tab(estimaciones_17_top)
+
+estimaciones_17_top %>% 
+    knitr::kable()
+
+ggplot(estimaciones_17_top) +
+    geom_hline(yintercept = est_clases_17_prop_top, alpha = 0.5, color = "black") +
+    geom_pointrange(size = 0.25, color = "red", alpha = 0.8,
+        aes(x = reorder(clase, est_usuario), y = est_usuario, 
+            ymin = est_usuario - 2 * est_usuario_se,
+            ymax = pmin(est_usuario + 2 * est_usuario_se, 100))) +
+    geom_pointrange(size = 0.25, color = "blue", alpha = 0.8,
+        aes(x = clase + 0.1, y = est_productor, 
+            ymin = est_productor - 2 * est_productor_se,
+            ymax = pmin(est_productor + 2 * est_productor_se, 100))) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(title = "Top: Estimaciones 17 clases", subtitle = "Intervalos 95%", 
+        x = "clases", y = "", 
+        caption = "Rojo corresponde a usario y azúl de productor") 
+
+```
+
+Y para *top 3*:
+
+```{r}
+estimaciones_17_top3 <- estima_clase(bits_design, var_clase_madmex = raster_c17, 
+    var_y = correcto_17_top3, n_clases = 17, top = FALSE)
+escribe_tab(estimaciones_17_top3)
+
+estimaciones_17_top3 %>% 
+    knitr::kable()
+
+ggplot(estimaciones_17_top3) +
+    geom_hline(yintercept = est_clases_17_prop_top3, alpha = 0.5, 
+        color = "black") +
+    geom_pointrange(size = 0.25, color = "red", alpha = 0.8,
+        aes(x = reorder(clase, est_usuario), y = est_usuario, 
+            ymin = est_usuario - 2 * est_usuario_se,
+            ymax = pmin(est_usuario + 2 * est_usuario_se, 100))) +
+    geom_pointrange(size = 0.25, color = "blue", alpha = 0.8,
+        aes(x = clase + 0.1, y = est_productor, 
+            ymin = est_productor - 2 * est_productor_se,
+            ymax = pmin(est_productor + 2 * est_productor_se, 100))) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(title = "Top3: Estimaciones 17 clases", subtitle = "Intervalos 95%", 
+        x = "clases", y = "", 
+        caption = "Rojo corresponde a usario y azúl de productor") 
+```
+
+```{r matrices_confusion_ponderadas}
+# matriz confusión top
+conf_top1_pond <- survey::svytable(~ raster_c17 + interp1_c17, bits_design)
+# escribe_tab(round(conf_top1_pond))
+
+# matriz confusión usuario
+bits_correcto <- bits_design %>% 
+    filter(correcto_17_top3) 
+
+diag_conf <- survey::svytable(~ raster_c17, bits_correcto)
+
+
+bits_incorrecto <- bits_design %>% 
+    mutate(interp1_c17_fact = factor(interp1_c17, levels = 1:17)) %>% 
+    filter(!correcto_17_top3)
+
+no_diag_conf_usuario <- map(1:17, ~filter(bits_incorrecto, raster_c17 == .)) %>% 
+    map(~survey::svytable(~ interp1_c17_fact, .)) %>% 
+    reduce(rbind)
+
+conf_usuario <- no_diag_conf_usuario  
+diag(conf_usuario) <- diag_conf
+# escribe_tab(conf_usuario)
+# 
+# 
+
+
+
+
+```
+
+```{r matrices_confusion_ponderadas_31}
+# matriz confusión top
+conf_top1_pond <- survey::svytable(~ raster_c31 + interp1_c31, bits_design)
+# escribe_tab(round(conf_top1_pond))
+
+# matriz confusión usuario
+bits_correcto <- bits_design %>% 
+    filter(correcto_31_top3) 
+diag_conf <- survey::svytable(~ raster_c31, bits_correcto)
+
+bits_incorrecto <- bits_design %>% 
+    mutate(interp1_c31_fact = factor(interp1_c31, levels = 1:31)) %>% 
+    filter(!correcto_31_top3)
+
+no_diag_conf_usuario <- map(1:31, ~filter(bits_incorrecto, raster_c31 == .)) %>% 
+    map(~survey::svytable(~ interp1_c31_fact, .)) %>% 
+    reduce(rbind)
+
+conf_usuario <- no_diag_conf_usuario  
+diag(conf_usuario) <- diag_conf
+# escribe_tab(conf_usuario)
+
+```
+
+## Estimaciones de exactitud a total por estado
+
+Utilizaremos como correcto *top 3*.
+
+### 17 clases
+
+```{r}
+estimaciones_edo_17 <- estima_total(bits_design, correcto_17_top3, 
+    var_group = edo)
+
+estimaciones_edo_17 <- estima_total(bits_design, correcto_17_top, 
+    var_group = edo)
+knitr::kable(estimaciones_edo_17)
+```
+
+Graficamos los intervalos del 95% de confianza a nivel estado, la línea roja
+representa el estimado nacional.
+
+```{r}
+ggplot(estimaciones_edo_17, aes(x = reorder(edo, correcto_17_top3), 
+    y = correcto_17_top3, 
+    ymin = correcto_17_top3 - 2 * correcto_17_top3_se,
+    ymax = correcto_17_top3 + 2 * correcto_17_top3_se)) +
+    geom_hline(yintercept = est_clases_17_prop_top3, alpha = 0.5, 
+        color = "red") +
+    geom_pointrange(size = 0.25) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(title = "Estimaciones 17 clases", subtitle = "Intervalos 95%")
+```
+
+
+
+## 31 clases
+
+Repetimos para 31 clases.
+
+```{r}
+estimaciones_edo_31 <- estima_total(bits_design, correcto_31_top3, 
+    var_group = edo)
+knitr::kable(estimaciones_edo_31)
+```
+
+```{r}
+ggplot(estimaciones_edo_31, aes(x = reorder(edo, correcto_31_top3), 
+    y = correcto_31_top3, 
+    ymin = correcto_31_top3 - 2 * correcto_31_top3_se,
+    ymax = correcto_31_top3 + 2 * correcto_31_top3_se)) +
+    geom_hline(yintercept = 83.8, alpha = 0.5, color = "red") +
+    geom_pointrange(size = 0.25) +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
+    labs(title = "Estimaciones 31 clases", subtitle = "Intervalos 95%")
+```
+
+
+```{r, eval = FALSE}
+bits_2018_w %>% 
+    as.data.frame() %>% 
+    mutate(cambios = raster_17 == classid) %>% 
+    group_by(edo) %>% 
+    summarise(cambio = mean(cambios))
+
+design <- bits_design %>% 
+    filter(edo == "Tabasco") %>% 
+    group_by(raster_17) %>% 
+    summarise(top3_17 = survey_mean(correcto_17_top3)) 
+
+raw <- bits_2018_w %>% 
+    as.data.frame() %>% 
+    filter(edo == "Tabasco") %>% 
+    group_by(raster_17) %>%  
+    summarise(top3_17 = mean(correcto_17_top3), n_obs = first(n_obs), N = first(N)) 
+
+design_2 <- bits_design %>% 
+    filter(edo == "Tabasco") %>% 
+    group_by(estrato) %>% 
+    summarise(top3_17 = survey_mean(correcto_17_top3)) 
+
+raw_2 <- bits_2018_w %>% 
+    as.data.frame() %>% 
+    filter(edo == "Tabasco") %>% 
+    group_by(estrato) %>%  
+    summarise(top3_17 = mean(correcto_17_top3), n_obs = first(n_obs), N = first(N)) 
+
+df <- tibble(id = 1:270, clase = c(rep(1, 100), rep(2, 50), rep(3, 120)))
+
+muestra <- function() {
+    a <- df %>% 
+        group_by(clase) %>% 
+        sample_frac(0.5)
+    b <- a %>% 
+        group_by(clase) %>% 
+        sample_n(10)
+    df_ab <- tibble(a = c(1 %in% a$id, 102 %in% a$id, 160 %in% a$id), 
+        b = c(1 %in% b$id, 102 %in% b$id, 160 %in% b$id))
+    return(df_ab)
+}
+n_times <- 5000
+rerun(.n = n_times, muestra()) %>% 
+    reduce(`+`) %>% 
+    `/`(n_times)
+```
+
+Comparación con primera entrega
+
+```{r}
+# bits_2018_v1: primer conjunto enviado por BITS 
+bits_2018_v1 <- read_sf("../data_bits/Validacion_Final_Mapa-2018_BITS_190211/validacion_final_2018.shp") %>% 
+    as.data.frame()
+bits_2018_comp <- bits_2018_w %>% 
+    as.data.frame() %>% 
+    left_join(bits_2018_v1, by = "identifier")
+
+sum(bits_2018_comp$interp1.x != bits_2018_comp$interp1.y, na.rm = TRUE)
+sum(bits_2018_comp$interp2.x != bits_2018_comp$interp2.y, na.rm = TRUE)
+sum(bits_2018_comp$interp3.x != bits_2018_comp$interp3.y, na.rm = TRUE)
+
+bits_2018_comp %>% 
+    mutate(
+        compara_31 = raster_m18 != raster_31, 
+        correcto_31_v1_top3 = (raster_m18 == interp1.x) | 
+            (raster_m18 == interp2.x) | (raster_m18 == interp3.x),
+        correcto_17_classid_top3 = (classid == interp1_17) | 
+            (classid == interp2_17) | (classid == interp3_17),
+        compara_17 = clasifica_31_17(raster_m18) != raster_17
+        ) %>% 
+    group_by(edo) %>% 
+    filter(!is.na(raster_m18)) %>% 
+    summarise(
+        n = n(), 
+        comp_31 = mean(compara_31), 
+        comp_17 = mean(compara_17), 
+        corr_31 = mean(correcto_31_top3),
+        corr_31_v1 = mean(correcto_31_v1_top3),
+        corr_17 = mean(correcto_17_top3), 
+        corr_17_classid = mean(correcto_17_classid_top3)
+    ) %>% 
+    View()
+
+```
+
+
