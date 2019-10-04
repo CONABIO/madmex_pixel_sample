@@ -11,12 +11,7 @@ aleatorio simple.
 * Estratos: definidos por estado $\times$ clase (17 clases 
 CONABIO/SEMARNAT/INEGI) dando lugar a 450 estratos.
 
-### datos
-* `datos_entrada/madmex_sentinel2_2018_31.tif`: Mapa con muestra generada por 
-Julián.
-
-1-disenio_muestra
-
+### Descripción de scripts
 Propuesta de tamaño de muestra por estrato de acuerdo a objetivo: evaluar clase x estado. 
  * Input: número de pixeles por clase x estado (calculado por Julián en python). 
 
