@@ -12,17 +12,19 @@ aleatorio simple.
 CONABIO/SEMARNAT/INEGI) dando lugar a 450 estratos.
 
 ### Descripción de scripts
+
+#### 1-disenio_muestra
 Propuesta de tamaño de muestra por estrato de acuerdo a objetivo: evaluar clase x estado. 
  * Input: número de pixeles por clase x estado (calculado por Julián en python). 
 
-3-revison_entrega
+#### 3-revison_entrega
 
 * scripts/1-crear_muestra_revision.R
 Se genera una muestra de tamaño 300 que evaluó Pedro para evaluar el trabajo de Bits. Esta muestra es estratificada para representar todas las clases y se crea a partir de una entrega parcial de Bits.
  - Input: `datos_entrada/datos_bits/Validacion_Final_Mapa-2018_BITS_190211/validacion_final_2018.shp` (Bits).
  - Output: `datos_salida/muestras_pedro/muestra_300.shp`
 
-* scripts/2-crear_datos_revision.R
+* scripts/3-crear_datos_revision.R
 Reune la entrega de Bits con el marco muestral y la muestra original con el fin de crear el insumo para la estimación. 
  - Inputs: `datos_entrada/datos_bits/PUNTOS DE VALIDACION-2018/Puntos_de_Validacion_2018_Revisados.shp` (Bits)
     `datos_entrada/madmex_sentinel2_2018_31.tif` (Thilo y Steffen, mapa final distinto al mapa con el que se diseñó la muestra) 
@@ -35,6 +37,14 @@ Reune la entrega de Bits con el marco muestral y la muestra original con el fin 
    `datos_entrada/datos_bits/Validacion_Final_Mapa-2018_BITS_190211/validacion_final_2018.shp` (Bits primera entrega)
  - Outputs: `datos_salida/bits_pedro.rds` (datos con variables de Pedro, Bits y Madmex)
    `datos_salida/bits_pedro_design.rds` (datos de tipo survey para hacer estimación con paquete de R)
+
+#### 4-estimacion
+
+* estimaciones_ponderadas.R
+Estima porcentajes crudos y usando el diseño muestral, usa las funciones en el script R/funciones.R
+ - Inputs: `datos_salida/bits_2018_lcc.rdata` (salida de 3-revision_entrega/scripts/3-crear_datos_revision.R)
+    `datos_salida/bits_2018_weights.rdata` (salida de 3-revision_entrega/scripts/3-crear_datos_revision.R)
+ - Outputs: `datos_salida/estimaciones`
 
 5-resultados
 app: aplicación shiny para explorar resultados, incluye tablas y gráficas con 
