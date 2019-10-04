@@ -52,3 +52,4 @@ resultados nacionales y estatales, a total y por estado. Su insumo son
 las tablas generadas por `3-revison_entrega/scripts/estimaciones_ponderadas.R`.
 
 
+
